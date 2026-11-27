@@ -2,10 +2,13 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addDepositAction } from "@/app/actions/deposits";
+import {
+  addDepositAction,
+  updateDepositAction,
+} from "@/app/actions/deposits";
 import { Modal } from "@/components/modal";
 import { DetailMiniCard } from "@/components/stat-card";
-import { IconEye, IconPlus } from "@/components/icons";
+import { IconEdit, IconEye, IconPlus } from "@/components/icons";
 
 type Member = { id: string; name: string };
 
@@ -29,7 +32,7 @@ export function DepositAddButton({
     <>
       <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
         <IconPlus />
-        Add deposit
+        Add credit
       </button>
       <DepositFormModal
         open={open}
@@ -44,20 +47,40 @@ export function DepositAddButton({
 export function DepositRowActions({
   members,
   deposit,
+  canEdit = false,
 }: {
   members: Member[];
   deposit: DepositEdit;
+  canEdit?: boolean;
 }) {
   const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const memberName = members.find((m) => m.id === deposit.userId)?.name || "—";
 
   return (
     <div className="flex flex-col items-end">
-      <button type="button" className="icon-btn" title="View" onClick={() => setViewOpen(true)}>
-        <IconEye />
-      </button>
+      <div className="inline-flex items-center justify-end gap-1">
+        <button
+          type="button"
+          className="icon-btn"
+          title="View"
+          onClick={() => setViewOpen(true)}
+        >
+          <IconEye />
+        </button>
+        {canEdit ? (
+          <button
+            type="button"
+            className="icon-btn"
+            title="Edit"
+            onClick={() => setEditOpen(true)}
+          >
+            <IconEdit />
+          </button>
+        ) : null}
+      </div>
 
-      <Modal open={viewOpen} title="Deposit details" onClose={() => setViewOpen(false)}>
+      <Modal open={viewOpen} title="Account details" onClose={() => setViewOpen(false)}>
         <div className="grid grid-cols-2 gap-2.5 text-left" dir="ltr">
           <DetailMiniCard label="Date" value={deposit.depositedAt} />
           <DetailMiniCard label="Amount" value={`+${deposit.amount}`} tone="good" />
@@ -65,6 +88,14 @@ export function DepositRowActions({
           <DetailMiniCard label="Note" value={deposit.note || "—"} />
         </div>
       </Modal>
+
+      <DepositFormModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        members={members}
+        currentUserId={deposit.userId}
+        initial={deposit}
+      />
     </div>
   );
 }
@@ -74,23 +105,30 @@ function DepositFormModal({
   onClose,
   members,
   currentUserId,
+  initial,
 }: {
   open: boolean;
   onClose: () => void;
   members: Member[];
   currentUserId: string;
+  initial?: DepositEdit;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const today = new Date().toISOString().slice(0, 10);
+  const isEdit = Boolean(initial);
 
   useEffect(() => {
     if (open) setError(null);
   }, [open]);
 
   return (
-    <Modal open={open} title="Add deposit" onClose={onClose}>
+    <Modal
+      open={open}
+      title={isEdit ? "Edit account credit" : "Add account credit"}
+      onClose={onClose}
+    >
       {members.length === 0 ? (
         <p className="text-sm text-muted">No active members available.</p>
       ) : (
@@ -99,7 +137,9 @@ function DepositFormModal({
           action={(formData) => {
             setError(null);
             startTransition(async () => {
-              const result = await addDepositAction(formData);
+              const result = isEdit
+                ? await updateDepositAction(formData)
+                : await addDepositAction(formData);
               if (result?.error) {
                 setError(result.error);
                 return;
@@ -109,6 +149,9 @@ function DepositFormModal({
             });
           }}
         >
+          {isEdit ? (
+            <input type="hidden" name="accountEntryId" value={initial!.id} />
+          ) : null}
           <label className="modal-field">
             <span>Member</span>
             <select
@@ -134,6 +177,7 @@ function DepositFormModal({
                 step="0.01"
                 required
                 className="input"
+                defaultValue={initial?.amount || ""}
               />
             </label>
             <label className="modal-field">
@@ -142,7 +186,7 @@ function DepositFormModal({
                 name="depositedAt"
                 type="date"
                 required
-                defaultValue={today}
+                defaultValue={initial?.depositedAt || today}
                 className="input"
               />
             </label>
@@ -152,7 +196,8 @@ function DepositFormModal({
             <input
               name="note"
               className="input"
-              placeholder="Advance / cash added"
+              defaultValue={initial?.note || ""}
+              placeholder="Cash added to account"
             />
           </label>
           {error ? (
@@ -161,7 +206,7 @@ function DepositFormModal({
             </p>
           ) : null}
           <button type="submit" className="btn btn-primary w-full" disabled={pending}>
-            {pending ? "Saving…" : "Save deposit"}
+            {pending ? "Saving…" : isEdit ? "Update credit" : "Save credit"}
           </button>
         </form>
       )}

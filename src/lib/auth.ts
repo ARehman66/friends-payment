@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
@@ -112,7 +113,8 @@ export async function destroySession() {
   jar.delete(COOKIE);
 }
 
-export async function getSession(): Promise<SessionUser | null> {
+/** One JWT decode per request (layout + page share this). No DB on every navigation. */
+export const getSession = cache(async (): Promise<SessionUser | null> => {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
@@ -134,23 +136,20 @@ export async function getSession(): Promise<SessionUser | null> {
       };
     }
 
-    // Re-load role permissions so role edits apply without re-login wait forever
-    const dbUser = await prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isAdmin: true,
-        roleId: true,
-      },
-    });
-    if (!dbUser) return null;
-    return resolveUserAccess(dbUser);
+    return {
+      id: payload.sub,
+      name: String(payload.name || ""),
+      email: payload.email,
+      isAdmin: false,
+      roleId: typeof payload.roleId === "string" ? payload.roleId : null,
+      roleName:
+        typeof payload.roleName === "string" ? payload.roleName : null,
+      permissions: (payload.permissions as UserPermissions) || {},
+    };
   } catch {
     return null;
   }
-}
+});
 
 export async function requireUser(): Promise<SessionUser> {
   const session = await getSession();
@@ -171,6 +170,22 @@ export async function requirePermission(
   const session = await requireUser();
   if (!hasPermission(session, resourceKey, action)) {
     throw new Error("You do not have permission for this action");
+  }
+  return session;
+}
+
+/** Only Admin or Cashier role may record expenses. */
+export function isCashier(user: SessionUser): boolean {
+  if (user.isAdmin) return true;
+  const role = (user.roleName || "").trim().toLowerCase();
+  if (role === "cashier") return true;
+  return hasPermission(user, "expenses", "add");
+}
+
+export async function requireCashier(): Promise<SessionUser> {
+  const session = await requireUser();
+  if (!isCashier(session)) {
+    throw new Error("Only Cashier can add expenses");
   }
   return session;
 }

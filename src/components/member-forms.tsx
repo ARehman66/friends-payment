@@ -2,11 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addMemberAction, setMemberActiveAction } from "@/app/actions/members";
-import { setUserRoleAction } from "@/app/actions/roles";
+import { addMemberAction, updateMemberAction } from "@/app/actions/members";
 import { Modal } from "@/components/modal";
-import { ConfirmModal } from "@/components/confirm-modal";
-import { IconPlus, IconTrash } from "@/components/icons";
+import { IconEdit, IconPlus } from "@/components/icons";
 
 type RoleOption = { id: string; name: string };
 
@@ -104,95 +102,59 @@ export function MemberAddButton({
   );
 }
 
-export function MemberRoleSelect({
-  userId,
-  roleId,
-  roles,
-  disabled,
-}: {
-  userId: string;
-  roleId: string | null;
-  roles: RoleOption[];
-  disabled?: boolean;
-}) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  if (disabled) {
-    return <span className="text-xs text-muted">Admin</span>;
-  }
-
-  return (
-    <div>
-      <select
-        className="input !py-1.5 !text-xs"
-        disabled={pending || roles.length === 0}
-        defaultValue={roleId || ""}
-        onChange={(e) => {
-          const fd = new FormData();
-          fd.set("userId", userId);
-          fd.set("roleId", e.target.value);
-          setError(null);
-          startTransition(async () => {
-            const result = await setUserRoleAction(fd);
-            if (result?.error) {
-              setError(result.error);
-              return;
-            }
-            router.refresh();
-          });
-        }}
-      >
-        {!roleId ? <option value="">Select role</option> : null}
-        {roles.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
-      {error ? <p className="mt-1 text-[10px] text-bad">{error}</p> : null}
-    </div>
-  );
-}
-
 export function MemberRowActions({
   userId,
   active,
   isAdminUser,
   name,
+  email,
+  roleId,
+  roleName,
+  roles,
+  canEdit,
 }: {
   userId: string;
   active: boolean;
   isAdminUser: boolean;
   name: string;
+  email: string;
+  roleId: string | null;
+  roleName: string | null;
+  roles: RoleOption[];
+  canEdit: boolean;
+  canDelete?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedRoleId, setSelectedRoleId] = useState(roleId || "");
+  const [selectedActive, setSelectedActive] = useState(active ? "true" : "false");
 
-  if (isAdminUser) {
+  if (isAdminUser || !canEdit) {
     return <span className="text-xs text-muted">—</span>;
   }
 
-  if (!active) {
-    return <span className="text-xs text-muted">Inactive</span>;
+  function openEdit() {
+    setSelectedRoleId(roleId || roles[0]?.id || "");
+    setSelectedActive(active ? "true" : "false");
+    setError(null);
+    setEditOpen(true);
   }
 
-  function deactivate() {
+  function saveEdit() {
     setError(null);
     const fd = new FormData();
     fd.set("userId", userId);
-    fd.set("active", "false");
+    fd.set("roleId", selectedRoleId);
+    fd.set("active", selectedActive);
     startTransition(async () => {
-      const result = await setMemberActiveAction(fd);
+      const result = await updateMemberAction(fd);
       if (result?.error) {
         setError(result.error);
-        setConfirmOpen(false);
         return;
       }
-      setConfirmOpen(false);
+      setEditOpen(false);
       router.refresh();
     });
   }
@@ -201,24 +163,82 @@ export function MemberRowActions({
     <div className="flex flex-col items-end">
       <button
         type="button"
-        className="icon-btn icon-btn-danger"
-        title="Deactivate"
+        className="icon-btn"
+        title="Edit member"
         disabled={pending}
-        onClick={() => setConfirmOpen(true)}
+        onClick={openEdit}
       >
-        <IconTrash />
+        <IconEdit />
       </button>
-      {error ? <p className="mt-1 text-xs text-bad">{error}</p> : null}
+      {error && !editOpen ? (
+        <p className="mt-1 text-xs text-bad">{error}</p>
+      ) : null}
 
-      <ConfirmModal
-        open={confirmOpen}
-        title="Deactivate member?"
-        message={`${name} will become inactive and will not appear in new expenses or deposits.`}
-        confirmLabel="Deactivate"
-        pending={pending}
-        onCancel={() => setConfirmOpen(false)}
-        onConfirm={deactivate}
-      />
+      <Modal open={editOpen} title="Edit member" onClose={() => setEditOpen(false)}>
+        <div className="modal-form">
+          <div className="rounded-xl border border-[#d7e0ea] bg-[#f7f9fb] px-3.5 py-3 text-left">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Member
+            </p>
+            <p className="mt-1 text-sm font-semibold text-ink">{name}</p>
+            <p className="mt-0.5 text-xs text-muted">{email}</p>
+          </div>
+
+          <label className="modal-field">
+            <span>Role</span>
+            <select
+              className="input"
+              value={selectedRoleId}
+              onChange={(e) => setSelectedRoleId(e.target.value)}
+              disabled={roles.length === 0}
+            >
+              {roles.length === 0 ? (
+                <option value="">No roles available</option>
+              ) : (
+                roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))
+              )}
+            </select>
+            {!roleId && roleName ? (
+              <p className="text-xs text-muted">Current: {roleName}</p>
+            ) : null}
+          </label>
+
+          <label className="modal-field">
+            <span>Status</span>
+            <select
+              className="input"
+              value={selectedActive}
+              onChange={(e) => setSelectedActive(e.target.value)}
+            >
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </label>
+
+          <p className="text-xs text-muted">
+            Name, email, and password stay the same. Only role and status can be changed.
+          </p>
+
+          {error ? (
+            <p className="rounded-xl bg-bad/10 px-3 py-2 text-sm text-bad">
+              {error}
+            </p>
+          ) : null}
+
+          <button
+            type="button"
+            className="btn btn-primary w-full"
+            disabled={pending || !selectedRoleId}
+            onClick={saveEdit}
+          >
+            {pending ? "Saving…" : "Update member"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

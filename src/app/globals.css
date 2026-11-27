@@ -182,8 +182,8 @@ body {
 }
 
 .data-table .col-action {
-  min-width: 4.5rem;
-  width: 4.5rem;
+  min-width: 5.5rem;
+  width: 5.5rem;
   text-align: right;
   white-space: nowrap;
 }

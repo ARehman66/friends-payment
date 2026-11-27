@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requirePermission } from "@/lib/auth";
+import { requireCashier, requirePermission } from "@/lib/auth";
 import { getDefaultGroup } from "@/lib/group";
 import {
   createExpense,
@@ -20,7 +20,6 @@ function refresh() {
 function parseExpenseForm(formData: FormData) {
   return {
     amount: Number(formData.get("amount")),
-    paidById: String(formData.get("paidById") || ""),
     note: String(formData.get("note") || ""),
     dateStr: String(formData.get("spentAt") || ""),
     participantIds: formData.getAll("participantIds").map(String),
@@ -30,10 +29,19 @@ function parseExpenseForm(formData: FormData) {
 export async function addExpenseAction(formData: FormData) {
   let user;
   try {
-    user = await requirePermission("expenses", "add");
+    user = await requireCashier();
   } catch {
-    return { error: "You do not have permission to add expenses" };
+    return { error: "Only Cashier (or Admin) can add expenses" };
   }
+  try {
+    await requirePermission("expenses", "add");
+  } catch {
+    // Admin/Cashier hard-gate already passed; allow if they have add OR are admin/cashier
+    if (!user.isAdmin && (user.roleName || "").toLowerCase() !== "cashier") {
+      return { error: "You do not have permission to add expenses" };
+    }
+  }
+
   const group = await getDefaultGroup();
   const data = parseExpenseForm(formData);
   const spentAt = data.dateStr
@@ -43,7 +51,7 @@ export async function addExpenseAction(formData: FormData) {
   try {
     await createExpense({
       groupId: group.id,
-      paidById: data.paidById,
+      recordedById: user.id,
       amount: data.amount,
       note: data.note,
       participantIds: data.participantIds,
@@ -61,9 +69,9 @@ export async function addExpenseAction(formData: FormData) {
 export async function updateExpenseAction(formData: FormData) {
   let user;
   try {
-    user = await requirePermission("expenses", "edit");
+    user = await requireCashier();
   } catch {
-    return { error: "You do not have permission to edit expenses" };
+    return { error: "Only Cashier (or Admin) can edit expenses" };
   }
   const group = await getDefaultGroup();
   const expenseId = String(formData.get("expenseId") || "");
@@ -78,7 +86,7 @@ export async function updateExpenseAction(formData: FormData) {
     await updateExpense({
       expenseId,
       groupId: group.id,
-      paidById: data.paidById,
+      recordedById: user.id,
       amount: data.amount,
       note: data.note,
       participantIds: data.participantIds,
@@ -95,9 +103,9 @@ export async function updateExpenseAction(formData: FormData) {
 
 export async function deleteExpenseAction(formData: FormData) {
   try {
-    await requirePermission("expenses", "delete");
+    await requireCashier();
   } catch {
-    return { error: "You do not have permission to delete expenses" };
+    return { error: "Only Cashier (or Admin) can delete expenses" };
   }
   const expenseId = String(formData.get("expenseId") || "");
   if (!expenseId) return { error: "Expense id required" };

@@ -1,9 +1,20 @@
 import { prisma } from "./prisma";
 import { roundMoney } from "./format";
 
+export const ACCOUNT_TYPE = "ACCOUNT" as const;
+export const EXPENSE_TYPE = "EXPENSE" as const;
+
+/** Match current + legacy ledger type strings. */
+export const ACCOUNT_TYPES = [ACCOUNT_TYPE, "DEPOSIT"] as const;
+export const EXPENSE_TYPES = [EXPENSE_TYPE, "SHARE"] as const;
+
+/**
+ * Expense = split total equally among present members and deduct each share
+ * from their account balance (can go negative). No recorder credit.
+ */
 export async function createExpense(input: {
   groupId: string;
-  paidById: string;
+  recordedById: string;
   amount: number;
   note: string;
   participantIds: string[];
@@ -15,9 +26,6 @@ export async function createExpense(input: {
   if (input.participantIds.length === 0) {
     throw new Error("Select at least one person who was present");
   }
-  if (!input.participantIds.includes(input.paidById)) {
-    throw new Error("The payer must be in the present list");
-  }
 
   const uniqueParticipants = [...new Set(input.participantIds)];
   const share = roundMoney(amount / uniqueParticipants.length);
@@ -25,6 +33,10 @@ export async function createExpense(input: {
 
   return prisma.$transaction(async (tx) => {
     for (const userId of uniqueParticipants) {
+      const person = await tx.user.findUnique({ where: { id: userId } });
+      if (person?.isAdmin) {
+        throw new Error("Admin is the app owner and has no expense share");
+      }
       const m = await tx.membership.findUnique({
         where: { groupId_userId: { groupId: input.groupId, userId } },
       });
@@ -36,42 +48,16 @@ export async function createExpense(input: {
     const expense = await tx.expense.create({
       data: {
         groupId: input.groupId,
-        paidById: input.paidById,
+        recordedById: input.recordedById,
         amount,
         note: input.note.trim() || "Break expense",
         spentAt,
         createdById: input.createdById,
-        participants: {
+        shares: {
           create: uniqueParticipants.map((userId) => ({ userId, share })),
         },
       },
-      include: { participants: true, paidBy: true },
-    });
-
-    const payerMembership = await tx.membership.findUniqueOrThrow({
-      where: {
-        groupId_userId: { groupId: input.groupId, userId: input.paidById },
-      },
-    });
-
-    const payerBefore = roundMoney(payerMembership.balance);
-    const payerAfterCredit = roundMoney(payerBefore + amount);
-    await tx.membership.update({
-      where: { id: payerMembership.id },
-      data: { balance: payerAfterCredit },
-    });
-    await tx.ledgerEntry.create({
-      data: {
-        groupId: input.groupId,
-        userId: input.paidById,
-        type: "PAID",
-        description: `Paid ${expense.note} (${uniqueParticipants.length} present)`,
-        amount,
-        balanceBefore: payerBefore,
-        balanceAfter: payerAfterCredit,
-        expenseId: expense.id,
-        createdAt: spentAt,
-      },
+      include: { shares: true, recordedBy: true },
     });
 
     for (const userId of uniqueParticipants) {
@@ -84,11 +70,11 @@ export async function createExpense(input: {
         where: { id: membership.id },
         data: { balance: after },
       });
-      await tx.ledgerEntry.create({
+      await tx.accountEntry.create({
         data: {
           groupId: input.groupId,
           userId,
-          type: "SHARE",
+          type: EXPENSE_TYPE,
           description: `Share of ${expense.note}`,
           amount: -share,
           balanceBefore: before,
@@ -107,11 +93,11 @@ export async function deleteExpense(expenseId: string) {
   return prisma.$transaction(async (tx) => {
     const expense = await tx.expense.findUnique({
       where: { id: expenseId },
-      include: { ledgerEntries: true },
+      include: { accountEntries: true },
     });
     if (!expense) throw new Error("Expense not found");
 
-    for (const entry of expense.ledgerEntries) {
+    for (const entry of expense.accountEntries) {
       const m = await tx.membership.findUniqueOrThrow({
         where: {
           groupId_userId: {
@@ -126,8 +112,8 @@ export async function deleteExpense(expenseId: string) {
       });
     }
 
-    await tx.ledgerEntry.deleteMany({ where: { expenseId } });
-    await tx.expenseParticipant.deleteMany({ where: { expenseId } });
+    await tx.accountEntry.deleteMany({ where: { expenseId } });
+    await tx.expenseShare.deleteMany({ where: { expenseId } });
     await tx.expense.delete({ where: { id: expenseId } });
   });
 }
@@ -135,7 +121,7 @@ export async function deleteExpense(expenseId: string) {
 export async function updateExpense(input: {
   expenseId: string;
   groupId: string;
-  paidById: string;
+  recordedById: string;
   amount: number;
   note: string;
   participantIds: string[];
@@ -145,7 +131,7 @@ export async function updateExpense(input: {
   await deleteExpense(input.expenseId);
   return createExpense({
     groupId: input.groupId,
-    paidById: input.paidById,
+    recordedById: input.recordedById,
     amount: input.amount,
     note: input.note,
     participantIds: input.participantIds,
@@ -154,6 +140,7 @@ export async function updateExpense(input: {
   });
 }
 
+/** Account top-up: increases member balance. */
 export async function createDeposit(input: {
   groupId: string;
   userId: string;
@@ -166,16 +153,21 @@ export async function createDeposit(input: {
   const depositedAt = input.depositedAt || new Date();
 
   return prisma.$transaction(async (tx) => {
+    const person = await tx.user.findUnique({ where: { id: input.userId } });
+    if (person?.isAdmin) {
+      throw new Error("Admin is the app owner and has no account");
+    }
+
     const membership = await tx.membership.findUnique({
       where: {
         groupId_userId: { groupId: input.groupId, userId: input.userId },
       },
     });
     if (!membership?.active) {
-      throw new Error("Only active members can add a deposit");
+      throw new Error("Only active members can receive account credit");
     }
 
-    const note = input.note.trim() || "Deposit / advance";
+    const note = input.note.trim() || "Account credit";
     const before = roundMoney(membership.balance);
     const after = roundMoney(before + amount);
 
@@ -184,42 +176,30 @@ export async function createDeposit(input: {
       data: { balance: after },
     });
 
-    const settlement = await tx.settlement.create({
-      data: {
-        groupId: input.groupId,
-        fromUserId: input.userId,
-        toUserId: input.userId,
-        amount,
-        note,
-        createdAt: depositedAt,
-      },
-    });
-
-    const entry = await tx.ledgerEntry.create({
+    const entry = await tx.accountEntry.create({
       data: {
         groupId: input.groupId,
         userId: input.userId,
-        type: "DEPOSIT",
+        type: ACCOUNT_TYPE,
         description: note,
         amount,
         balanceBefore: before,
         balanceAfter: after,
-        settlementId: settlement.id,
         createdAt: depositedAt,
       },
     });
 
-    return { settlement, entry };
+    return { entry };
   });
 }
 
-export async function deleteDeposit(ledgerEntryId: string) {
+export async function deleteDeposit(accountEntryId: string) {
   return prisma.$transaction(async (tx) => {
-    const entry = await tx.ledgerEntry.findUnique({
-      where: { id: ledgerEntryId },
+    const entry = await tx.accountEntry.findUnique({
+      where: { id: accountEntryId },
     });
-    if (!entry || entry.type !== "DEPOSIT") {
-      throw new Error("Deposit not found");
+    if (!entry || !ACCOUNT_TYPES.includes(entry.type as (typeof ACCOUNT_TYPES)[number])) {
+      throw new Error("Account entry not found");
     }
 
     const m = await tx.membership.findUniqueOrThrow({
@@ -232,23 +212,19 @@ export async function deleteDeposit(ledgerEntryId: string) {
       data: { balance: roundMoney(m.balance - entry.amount) },
     });
 
-    const settlementId = entry.settlementId;
-    await tx.ledgerEntry.delete({ where: { id: entry.id } });
-    if (settlementId) {
-      await tx.settlement.delete({ where: { id: settlementId } }).catch(() => null);
-    }
+    await tx.accountEntry.delete({ where: { id: entry.id } });
   });
 }
 
 export async function updateDeposit(input: {
-  ledgerEntryId: string;
+  accountEntryId: string;
   groupId: string;
   userId: string;
   amount: number;
   note: string;
   depositedAt?: Date;
 }) {
-  await deleteDeposit(input.ledgerEntryId);
+  await deleteDeposit(input.accountEntryId);
   return createDeposit({
     groupId: input.groupId,
     userId: input.userId,

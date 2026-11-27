@@ -3,9 +3,33 @@ import bcrypt from "bcryptjs";
 import {
   defaultMemberPermissions,
   fullAdminPermissions,
+  normalizePermissionMap,
+  RESOURCES,
 } from "../src/lib/permissions";
 
 const prisma = new PrismaClient();
+
+function cashierPermissions() {
+  return RESOURCES.map((r) => {
+    const canExpense = r.key === "expenses";
+    const canView =
+      canExpense ||
+      ["dashboard", "deposits", "statement"].includes(r.key);
+    return {
+      resourceKey: r.key,
+      permissions: normalizePermissionMap(
+        {
+          view: canView,
+          add: canExpense,
+          edit: false,
+          delete: false,
+          all: false,
+        },
+        r.actions,
+      ),
+    };
+  });
+}
 
 async function ensureRoles() {
   let memberRole = await prisma.role.findFirst({
@@ -15,10 +39,29 @@ async function ensureRoles() {
     memberRole = await prisma.role.create({
       data: {
         name: "Member",
-        description: "Default access: view dashboard, expenses, deposits, statement",
+        description: "View dashboard, account, expenses, statement",
         status: "active",
         permissions: defaultMemberPermissions(),
       },
+    });
+  }
+
+  let cashierRole = await prisma.role.findFirst({
+    where: { name: "Cashier" },
+  });
+  if (!cashierRole) {
+    cashierRole = await prisma.role.create({
+      data: {
+        name: "Cashier",
+        description: "Only role that can record expenses (cuts account balances)",
+        status: "active",
+        permissions: cashierPermissions(),
+      },
+    });
+  } else {
+    await prisma.role.update({
+      where: { id: cashierRole.id },
+      data: { permissions: cashierPermissions() },
     });
   }
 
@@ -29,20 +72,26 @@ async function ensureRoles() {
     managerRole = await prisma.role.create({
       data: {
         name: "Manager",
-        description: "Can manage expenses, deposits, and members",
+        description: "Manage account, members — expenses only via Cashier",
         status: "active",
         permissions: fullAdminPermissions().map((entry) => ({
           ...entry,
           permissions:
-            entry.resourceKey === "roles"
-              ? { all: false, view: false, add: false, edit: false, delete: false }
+            entry.resourceKey === "roles" || entry.resourceKey === "expenses"
+              ? {
+                  all: false,
+                  view: entry.resourceKey === "expenses",
+                  add: false,
+                  edit: false,
+                  delete: false,
+                }
               : { all: true, view: true, add: true, edit: true, delete: true },
         })),
       },
     });
   }
 
-  return { memberRole, managerRole };
+  return { memberRole, cashierRole, managerRole };
 }
 
 async function main() {
@@ -54,7 +103,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 10);
   const reset = process.env.SEED_RESET === "true";
 
-  const { memberRole } = await ensureRoles();
+  const { memberRole, cashierRole } = await ensureRoles();
 
   const group = await prisma.group.upsert({
     where: { id: "seed-office-break" },
@@ -83,7 +132,6 @@ async function main() {
     },
   });
 
-  // Assign default Member role to any non-admin without a role
   await prisma.user.updateMany({
     where: { isAdmin: false, roleId: null },
     data: { roleId: memberRole.id },
@@ -96,14 +144,9 @@ async function main() {
     });
 
     for (const extra of extras) {
-      await prisma.ledgerEntry.deleteMany({ where: { userId: extra.id } });
-      await prisma.expenseParticipant.deleteMany({ where: { userId: extra.id } });
-      await prisma.expense.deleteMany({ where: { paidById: extra.id } });
-      await prisma.settlement.deleteMany({
-        where: {
-          OR: [{ fromUserId: extra.id }, { toUserId: extra.id }],
-        },
-      });
+      await prisma.accountEntry.deleteMany({ where: { userId: extra.id } });
+      await prisma.expenseShare.deleteMany({ where: { userId: extra.id } });
+      await prisma.expense.deleteMany({ where: { recordedById: extra.id } });
       await prisma.membership.deleteMany({ where: { userId: extra.id } });
       await prisma.user.delete({ where: { id: extra.id } });
       console.log(`Removed member: ${extra.email}`);
@@ -113,14 +156,13 @@ async function main() {
       where: { userId: admin.id },
       data: { balance: 0 },
     });
-    await prisma.ledgerEntry.deleteMany({ where: { userId: admin.id } });
+    await prisma.accountEntry.deleteMany({ where: { userId: admin.id } });
     await prisma.expense.deleteMany({ where: { groupId: group.id } });
-    await prisma.settlement.deleteMany({ where: { groupId: group.id } });
   }
 
   console.log(`Admin ready: ${email}`);
-  console.log(`Default roles: Member (${memberRole.id}), Manager`);
-  console.log("Add friends from Members page (they get Member role by default).");
+  console.log(`Roles: Member, Cashier (${cashierRole.id}), Manager`);
+  console.log("Assign Cashier role to the person who records expenses.");
 }
 
 main()

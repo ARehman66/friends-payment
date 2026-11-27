@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { LogoutButton } from "@/components/logout-button";
 import { IconMenu } from "@/components/icons";
 import type { SessionUser } from "@/lib/auth";
@@ -96,6 +97,7 @@ export function Shell({
 
   return (
     <div className="flex h-dvh overflow-hidden bg-bg">
+      <AutoRefresh intervalMs={20000} />
       <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-panel lg:flex">
         {sidebarInner}
       </aside>

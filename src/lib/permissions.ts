@@ -34,16 +34,16 @@ export const RESOURCES: ResourceDef[] = [
   },
   {
     key: "deposits",
-    name: "Deposits",
-    description: "View and add advances",
-    actions: ["all", "view", "add"],
+    name: "Account",
+    description: "Add or edit member account balance",
+    actions: ["all", "view", "add", "edit"],
     href: "/deposits",
   },
   {
     key: "members",
     name: "Members",
-    description: "Add and deactivate members",
-    actions: ["all", "view", "add", "delete"],
+    description: "Add and edit members (role / status)",
+    actions: ["all", "view", "add", "edit"],
     href: "/members",
   },
   {

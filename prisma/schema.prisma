@@ -7,6 +7,7 @@ datasource db {
   url      = env("MONGODB_URI")
 }
 
+/// App login identity. Admin (isAdmin) is owner-only — no Membership account balance.
 model User {
   id           String   @id @default(cuid()) @map("_id")
   name         String
@@ -17,13 +18,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  role            Role?                @relation(fields: [roleId], references: [id])
-  memberships     Membership[]
-  expensesPaid    Expense[]            @relation("ExpensePayer")
-  expenseShares   ExpenseParticipant[]
-  settlementsFrom Settlement[]         @relation("SettlementFrom")
-  settlementsTo   Settlement[]         @relation("SettlementTo")
-  ledgerEntries   LedgerEntry[]
+  role             Role?          @relation(fields: [roleId], references: [id])
+  memberships      Membership[]
+  expensesRecorded Expense[]      @relation("ExpenseRecorder")
+  expenseShares    ExpenseShare[]
+  accountEntries   AccountEntry[]
 }
 
 model Role {
@@ -46,12 +45,12 @@ model Group {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships   Membership[]
-  expenses      Expense[]
-  settlements   Settlement[]
-  ledgerEntries LedgerEntry[]
+  memberships    Membership[]
+  expenses       Expense[]
+  accountEntries AccountEntry[]
 }
 
+/// Member in the office group + running account balance.
 model Membership {
   id       String   @id @default(cuid()) @map("_id")
   groupId  String
@@ -66,23 +65,25 @@ model Membership {
   @@unique([groupId, userId])
 }
 
+/// Expense total; equal shares cut from present members' accounts.
 model Expense {
-  id          String   @id @default(cuid()) @map("_id")
-  groupId     String
-  paidById    String
-  amount      Float
-  note        String   @default("")
-  spentAt     DateTime @default(now())
-  createdAt   DateTime @default(now())
-  createdById String?
+  id           String   @id @default(cuid()) @map("_id")
+  groupId      String
+  recordedById String   @map("paidById")
+  amount       Float
+  note         String   @default("")
+  spentAt      DateTime @default(now())
+  createdAt    DateTime @default(now())
+  createdById  String?
 
-  group         Group                @relation(fields: [groupId], references: [id])
-  paidBy        User                 @relation("ExpensePayer", fields: [paidById], references: [id])
-  participants  ExpenseParticipant[]
-  ledgerEntries LedgerEntry[]
+  group          Group          @relation(fields: [groupId], references: [id])
+  recordedBy     User           @relation("ExpenseRecorder", fields: [recordedById], references: [id])
+  shares         ExpenseShare[]
+  accountEntries AccountEntry[]
 }
 
-model ExpenseParticipant {
+/// Who was present on an expense and their equal share amount.
+model ExpenseShare {
   id        String @id @default(cuid()) @map("_id")
   expenseId String
   userId    String
@@ -94,38 +95,23 @@ model ExpenseParticipant {
   @@unique([expenseId, userId])
 }
 
-model Settlement {
-  id         String   @id @default(cuid()) @map("_id")
-  groupId    String
-  fromUserId String
-  toUserId   String
-  amount     Float
-  note       String   @default("")
-  createdAt  DateTime @default(now())
-
-  group         Group         @relation(fields: [groupId], references: [id])
-  fromUser      User          @relation("SettlementFrom", fields: [fromUserId], references: [id])
-  toUser        User          @relation("SettlementTo", fields: [toUserId], references: [id])
-  ledgerEntries LedgerEntry[]
-}
-
-model LedgerEntry {
+/// Account statement lines: ACCOUNT (credit) or EXPENSE (share cut).
+model AccountEntry {
   id            String   @id @default(cuid()) @map("_id")
   groupId       String
   userId        String
+  /// ACCOUNT | EXPENSE  (legacy rows may still be DEPOSIT | SHARE)
   type          String
   description   String
   amount        Float
   balanceBefore Float
   balanceAfter  Float
   expenseId     String?
-  settlementId  String?
   createdAt     DateTime @default(now())
 
-  group      Group       @relation(fields: [groupId], references: [id])
-  user       User        @relation(fields: [userId], references: [id])
-  expense    Expense?    @relation(fields: [expenseId], references: [id])
-  settlement Settlement? @relation(fields: [settlementId], references: [id])
+  group   Group    @relation(fields: [groupId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  expense Expense? @relation(fields: [expenseId], references: [id])
 
   @@index([groupId, userId, createdAt])
   @@index([groupId, createdAt])

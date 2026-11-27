@@ -27,12 +27,19 @@ export default async function StatementPage({
   const sp = await searchParams;
 
   const members = await prisma.membership.findMany({
-    where: { groupId: group.id },
+    where: {
+      groupId: group.id,
+      user: { isAdmin: false },
+    },
     include: { user: true },
     orderBy: { user: { name: "asc" } },
   });
 
-  const memberId = sp.member || user.id;
+  const memberId =
+    sp.member ||
+    (members.some((m) => m.userId === user.id)
+      ? user.id
+      : members[0]?.userId || user.id);
   const from = sp.from ? new Date(`${sp.from}T00:00:00`) : null;
   const to = sp.to ? new Date(`${sp.to}T23:59:59`) : null;
   const page = parsePage(sp.page);
@@ -52,8 +59,8 @@ export default async function StatementPage({
   };
 
   const [total, rows] = await Promise.all([
-    prisma.ledgerEntry.count({ where }),
-    prisma.ledgerEntry.findMany({
+    prisma.accountEntry.count({ where }),
+    prisma.accountEntry.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
@@ -150,7 +157,11 @@ export default async function StatementPage({
                   </td>
                   <td>
                     <span className="rounded-md bg-bg px-2 py-1 text-[11px] font-medium text-muted">
-                      {row.type}
+                      {row.type === "DEPOSIT" || row.type === "ACCOUNT"
+                        ? "ACCOUNT"
+                        : row.type === "SHARE" || row.type === "EXPENSE"
+                          ? "EXPENSE"
+                          : row.type}
                     </span>
                   </td>
                   <td>{row.description}</td>

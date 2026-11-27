@@ -1,6 +1,8 @@
+import { cache } from "react";
 import { prisma } from "./prisma";
 
-export async function getDefaultGroup() {
+/** One group lookup per request. */
+export const getDefaultGroup = cache(async () => {
   let group = await prisma.group.findFirst({ orderBy: { createdAt: "asc" } });
   if (!group) {
     group = await prisma.group.create({
@@ -8,7 +10,7 @@ export async function getDefaultGroup() {
     });
   }
   return group;
-}
+});
 
 export async function ensureMembership(userId: string, groupId: string) {
   return prisma.membership.upsert({

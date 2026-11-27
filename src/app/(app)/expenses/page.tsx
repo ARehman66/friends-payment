@@ -3,7 +3,7 @@ import { requirePageAccess } from "@/lib/access";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 import { formatMoneyPlain, roundMoney } from "@/lib/format";
-import { hasPermission } from "@/lib/permissions";
+import { isCashier } from "@/lib/auth";
 import {
   ExpenseAddButton,
   ExpenseRowActions,
@@ -25,11 +25,19 @@ export default async function ExpensesPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.pageSize);
 
+  // Admin is app owner only — no account / expense share
   const activeMembers = await prisma.membership.findMany({
-    where: { groupId: group.id, active: true },
+    where: {
+      groupId: group.id,
+      active: true,
+      user: { isAdmin: false },
+    },
     include: { user: true },
-    orderBy: { user: { name: "asc" } },
   });
+
+  activeMembers.sort((a, b) =>
+    a.user.name.localeCompare(b.user.name, undefined, { sensitivity: "base" }),
+  );
 
   const memberOptions = activeMembers.map((m) => ({
     id: m.userId,
@@ -42,7 +50,7 @@ export default async function ExpensesPage({
       ? {
           OR: [
             { note: { contains: q } },
-            { paidBy: { name: { contains: q } } },
+            { recordedBy: { name: { contains: q } } },
           ],
         }
       : {}),
@@ -53,8 +61,8 @@ export default async function ExpensesPage({
     prisma.expense.findMany({
       where,
       include: {
-        paidBy: true,
-        participants: { include: { user: true } },
+        recordedBy: true,
+        shares: { include: { user: true } },
       },
       orderBy: [{ spentAt: "desc" }, { createdAt: "desc" }],
       skip: (page - 1) * pageSize,
@@ -63,27 +71,22 @@ export default async function ExpensesPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentUserId = activeMembers.some((m) => m.userId === user.id)
-    ? user.id
-    : activeMembers[0]?.userId || user.id;
+  const canAddExpense = isCashier(user);
 
   return (
     <div>
       <PageHeader
         title="Expenses"
-        subtitle="Money going out — equal split among who was present"
+        subtitle="Equal split among selected members (Cashier records)"
       />
 
       <div className="card overflow-hidden">
         <TableToolbar
           searchDefault={q}
-          searchPlaceholder="Search by note or payer…"
+          searchPlaceholder="Search by note or recorder…"
           action={
-            hasPermission(user, "expenses", "add") ? (
-              <ExpenseAddButton
-                members={memberOptions}
-                currentUserId={currentUserId}
-              />
+            canAddExpense ? (
+              <ExpenseAddButton members={memberOptions} />
             ) : undefined
           }
         />
@@ -94,7 +97,7 @@ export default async function ExpensesPage({
               <tr>
                 <th className="col-date">Date</th>
                 <th className="col-note">Note</th>
-                <th className="col-person">Paid by</th>
+                <th className="col-person">Recorded by</th>
                 <th className="col-present">Present</th>
                 <th className="col-money">Share</th>
                 <th className="col-money">Amount</th>
@@ -104,7 +107,7 @@ export default async function ExpensesPage({
             <tbody>
               {expenses.map((expense) => {
                 const share = roundMoney(
-                  expense.amount / Math.max(expense.participants.length, 1),
+                  expense.amount / Math.max(expense.shares.length, 1),
                 );
                 return (
                   <tr key={expense.id}>
@@ -112,9 +115,9 @@ export default async function ExpensesPage({
                       {format(expense.spentAt, "dd MMM yyyy")}
                     </td>
                     <td className="col-note font-medium">{expense.note}</td>
-                    <td className="col-person">{expense.paidBy.name}</td>
+                    <td className="col-person">{expense.recordedBy.name}</td>
                     <td className="col-present truncate text-muted">
-                      {expense.participants.map((p) => p.user.name).join(", ")}
+                      {expense.shares.map((p) => p.user.name).join(", ")}
                     </td>
                     <td className="col-money">
                       {formatMoneyPlain(share, group.currency)}
@@ -130,10 +133,9 @@ export default async function ExpensesPage({
                           amount: expense.amount,
                           note: expense.note,
                           spentAt: format(expense.spentAt, "yyyy-MM-dd"),
-                          paidById: expense.paidById,
-                          participantIds: expense.participants.map(
-                            (p) => p.userId,
-                          ),
+                          paidById: expense.recordedById,
+                          paidByName: expense.recordedBy.name,
+                          participantIds: expense.shares.map((p) => p.userId),
                         }}
                       />
                     </td>

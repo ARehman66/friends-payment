@@ -6,17 +6,20 @@ import { RolesManager } from "@/components/roles-manager";
 export default async function RolesPage() {
   const user = await requirePageAccess("roles", "view");
 
-  const roles = await prisma.role.findMany({
-    orderBy: { name: "asc" },
-  });
+  const [roles, roleCounts] = await Promise.all([
+    prisma.role.findMany({ orderBy: { name: "asc" } }),
+    prisma.user.groupBy({
+      by: ["roleId"],
+      where: { roleId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
 
-  const counts = await Promise.all(
-    roles.map(async (role) => ({
-      roleId: role.id,
-      count: await prisma.user.count({ where: { roleId: role.id } }),
-    })),
+  const countMap = Object.fromEntries(
+    roleCounts
+      .filter((r) => r.roleId)
+      .map((r) => [r.roleId as string, r._count._all]),
   );
-  const countMap = Object.fromEntries(counts.map((c) => [c.roleId, c.count]));
 
   return (
     <div>

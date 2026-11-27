@@ -3,6 +3,7 @@ import { requirePageAccess } from "@/lib/access";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 import { formatMoneyPlain } from "@/lib/format";
+import { ACCOUNT_TYPES } from "@/lib/ledger";
 import { hasPermission } from "@/lib/permissions";
 import {
   DepositAddButton,
@@ -25,8 +26,13 @@ export default async function DepositsPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.pageSize);
 
+  // Admin is app owner only — no account balance
   const activeMembers = await prisma.membership.findMany({
-    where: { groupId: group.id, active: true },
+    where: {
+      groupId: group.id,
+      active: true,
+      user: { isAdmin: false },
+    },
     include: { user: true },
     orderBy: { user: { name: "asc" } },
   });
@@ -38,7 +44,7 @@ export default async function DepositsPage({
 
   const where = {
     groupId: group.id,
-    type: "DEPOSIT",
+    type: { in: [...ACCOUNT_TYPES] },
     ...(q
       ? {
           OR: [
@@ -50,8 +56,8 @@ export default async function DepositsPage({
   };
 
   const [total, deposits] = await Promise.all([
-    prisma.ledgerEntry.count({ where }),
-    prisma.ledgerEntry.findMany({
+    prisma.accountEntry.count({ where }),
+    prisma.accountEntry.findMany({
       where,
       include: { user: true },
       orderBy: { createdAt: "desc" },
@@ -68,8 +74,8 @@ export default async function DepositsPage({
   return (
     <div>
       <PageHeader
-        title="Deposits"
-        subtitle="Money coming in — advances added to a member balance"
+        title="Account"
+        subtitle="Add money to a member’s account balance"
       />
 
       <div className="card overflow-hidden">
@@ -119,6 +125,7 @@ export default async function DepositsPage({
                   <td className="col-action">
                     <DepositRowActions
                       members={memberOptions}
+                      canEdit={hasPermission(user, "deposits", "edit")}
                       deposit={{
                         id: row.id,
                         amount: row.amount,
@@ -133,7 +140,7 @@ export default async function DepositsPage({
               {deposits.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="!py-10 text-center text-muted">
-                    No deposits yet.
+                    No account entries yet.
                   </td>
                 </tr>
               ) : null}

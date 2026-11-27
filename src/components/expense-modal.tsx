@@ -15,20 +15,25 @@ export type ExpenseEdit = {
   note: string;
   spentAt: string;
   paidById: string;
+  paidByName?: string;
   participantIds: string[];
 };
 
 export function ExpenseAddButton({
   members,
-  currentUserId,
 }: {
   members: Member[];
-  currentUserId: string;
+  currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
+
+  function openModal() {
+    setOpen(true);
+  }
+
   return (
     <>
-      <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+      <button type="button" className="btn btn-primary" onClick={openModal}>
         <IconPlus />
         Add expense
       </button>
@@ -36,7 +41,6 @@ export function ExpenseAddButton({
         open={open}
         onClose={() => setOpen(false)}
         members={members}
-        currentUserId={currentUserId}
       />
     </>
   );
@@ -50,10 +54,17 @@ export function ExpenseRowActions({
   expense: ExpenseEdit;
 }) {
   const [viewOpen, setViewOpen] = useState(false);
-  const payer = members.find((m) => m.id === expense.paidById)?.name || "—";
+  const recordedBy =
+    expense.paidByName ||
+    members.find((m) => m.id === expense.paidById)?.name ||
+    "—";
   const present = expense.participantIds
     .map((id) => members.find((m) => m.id === id)?.name || id)
     .join(", ");
+  const share =
+    expense.participantIds.length > 0
+      ? Math.round((expense.amount / expense.participantIds.length) * 100) / 100
+      : expense.amount;
 
   return (
     <div className="flex flex-col items-end">
@@ -66,7 +77,8 @@ export function ExpenseRowActions({
           <DetailMiniCard label="Date" value={expense.spentAt} />
           <DetailMiniCard label="Amount" value={String(expense.amount)} tone="bad" />
           <DetailMiniCard label="Note" value={expense.note || "—"} />
-          <DetailMiniCard label="Paid by" value={payer} />
+          <DetailMiniCard label="Recorded by" value={recordedBy} />
+          <DetailMiniCard label="Each share" value={String(share)} tone="bad" />
           <div className="col-span-2">
             <DetailMiniCard label="Present" value={present || "—"} />
           </div>
@@ -80,26 +92,34 @@ function ExpenseFormModal({
   open,
   onClose,
   members,
-  currentUserId,
 }: {
   open: boolean;
   onClose: () => void;
   members: Member[];
-  currentUserId: string;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [amount, setAmount] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [ready, setReady] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
+  const memberIds = useMemo(
+    () => members.map((m) => m.id).join("|"),
+    [members],
+  );
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setReady(false);
+      return;
+    }
     setAmount("");
-    setSelected(members.map((m) => m.id));
     setError(null);
-  }, [open, members]);
+    setSelected(members.map((m) => m.id));
+    setReady(true);
+  }, [open, memberIds, members]);
 
   const share = useMemo(() => {
     const n = Number(amount);
@@ -113,10 +133,22 @@ function ExpenseFormModal({
     );
   }
 
+  function selectAll() {
+    setSelected(members.map((m) => m.id));
+  }
+
+  function clearAll() {
+    setSelected([]);
+  }
+
   return (
     <Modal open={open} title="Add expense" onClose={onClose}>
-      {members.length === 0 ? (
-        <p className="text-sm text-muted">No active members available.</p>
+      {!ready || members.length === 0 ? (
+        <p className="text-sm text-muted">
+          {members.length === 0
+            ? "No active members available. Add members first."
+            : "Loading members…"}
+        </p>
       ) : (
         <form
           className="modal-form"
@@ -160,27 +192,30 @@ function ExpenseFormModal({
             </label>
           </div>
           <label className="modal-field">
-            <span>Who paid</span>
-            <select
-              name="paidById"
-              defaultValue={currentUserId}
-              className="input"
-              required
-            >
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="modal-field">
             <span>Note</span>
             <input name="note" className="input" placeholder="Tea / lunch" />
           </label>
           <div className="modal-field">
-            <span>Who was present?</span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span>Who was present?</span>
+              <div className="flex gap-2 text-xs">
+                <button
+                  type="button"
+                  className="text-brand underline-offset-2 hover:underline"
+                  onClick={selectAll}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="text-muted underline-offset-2 hover:underline"
+                  onClick={clearAll}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {members.map((m) => {
                 const on = selected.includes(m.id);
                 return (
@@ -188,7 +223,7 @@ function ExpenseFormModal({
                     key={m.id}
                     type="button"
                     onClick={() => toggle(m.id)}
-                    className={`rounded-xl border px-3 py-2 text-left text-sm ${
+                    className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${
                       on
                         ? "border-brand bg-brand/5 font-medium text-ink"
                         : "border-[#d7e0ea] bg-white text-muted"
@@ -200,8 +235,9 @@ function ExpenseFormModal({
               })}
             </div>
             <p className="text-xs text-muted">
-              Equal share: <strong className="text-ink">{share || "—"}</strong> ×{" "}
-              {selected.length}
+              Equal share cut from each account:{" "}
+              <strong className="text-ink">{share || "—"}</strong> ×{" "}
+              {selected.length} present
             </p>
           </div>
           {error ? (

@@ -54,18 +54,20 @@ export async function updateDepositAction(formData: FormData) {
     return { error: "You do not have permission to edit deposits" };
   }
   const group = await getDefaultGroup();
-  const ledgerEntryId = String(formData.get("ledgerEntryId") || "");
+  const accountEntryId = String(
+    formData.get("accountEntryId") || formData.get("ledgerEntryId") || "",
+  );
   const amount = Number(formData.get("amount"));
   const userId = String(formData.get("userId") || "");
   const note = String(formData.get("note") || "");
   const dateStr = String(formData.get("depositedAt") || "");
   const depositedAt = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
 
-  if (!ledgerEntryId) return { error: "Deposit id required" };
+  if (!accountEntryId) return { error: "Account entry id required" };
 
   try {
     await updateDeposit({
-      ledgerEntryId,
+      accountEntryId,
       groupId: group.id,
       userId,
       amount,
@@ -86,11 +88,13 @@ export async function deleteDepositAction(formData: FormData) {
   } catch {
     return { error: "You do not have permission to delete deposits" };
   }
-  const ledgerEntryId = String(formData.get("ledgerEntryId") || "");
-  if (!ledgerEntryId) return { error: "Deposit id required" };
+  const accountEntryId = String(
+    formData.get("accountEntryId") || formData.get("ledgerEntryId") || "",
+  );
+  if (!accountEntryId) return { error: "Account entry id required" };
 
   try {
-    await deleteDeposit(ledgerEntryId);
+    await deleteDeposit(accountEntryId);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Could not delete deposit" };
   }

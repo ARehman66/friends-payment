@@ -111,6 +111,84 @@ export async function addMemberAction(formData: FormData) {
   return { ok: true as const };
 }
 
+export async function updateMemberAction(formData: FormData) {
+  const session = await requireUser();
+  const group = await getDefaultGroup();
+  const userId = String(formData.get("userId") || "");
+  const roleId = String(formData.get("roleId") || "").trim();
+  const active = String(formData.get("active") || "") === "true";
+
+  if (!userId) return { error: "Member required" };
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { error: "Member not found" };
+  if (target.isAdmin) return { error: "Admin cannot be edited here" };
+
+  const membership = await prisma.membership.findUnique({
+    where: { groupId_userId: { groupId: group.id, userId } },
+  });
+  if (!membership) return { error: "Member not found" };
+
+  const roleChanging = roleId && roleId !== (target.roleId || "");
+  const statusChanging = active !== membership.active;
+
+  if (roleChanging) {
+    try {
+      await requirePermission("members", "edit");
+    } catch {
+      try {
+        await requirePermission("members", "add");
+      } catch {
+        try {
+          await requirePermission("roles", "edit");
+        } catch {
+          return { error: "You do not have permission to change roles" };
+        }
+      }
+    }
+    const role = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!role || role.status !== "active") {
+      return { error: "Selected role is invalid or inactive" };
+    }
+  }
+
+  if (statusChanging) {
+    try {
+      await requirePermission("members", "edit");
+    } catch {
+      try {
+        await requirePermission("members", "add");
+      } catch {
+        return { error: "You do not have permission to change status" };
+      }
+    }
+    if (userId === session.id && !active) {
+      return { error: "You cannot deactivate yourself" };
+    }
+  }
+
+  if (!roleChanging && !statusChanging) {
+    return { ok: true as const };
+  }
+
+  if (roleChanging) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { roleId },
+    });
+  }
+
+  if (statusChanging) {
+    await prisma.membership.update({
+      where: { id: membership.id },
+      data: { active },
+    });
+  }
+
+  refresh();
+  return { ok: true as const };
+}
+
 export async function setMemberActiveAction(formData: FormData) {
   try {
     await requirePermission("members", "delete");
