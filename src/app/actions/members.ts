@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin, hashPassword } from "@/lib/auth";
+import { requirePermission, requireUser, hashPassword } from "@/lib/auth";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 
@@ -11,19 +11,45 @@ function refresh() {
   revalidatePath("/expenses");
   revalidatePath("/deposits");
   revalidatePath("/statement");
+  revalidatePath("/roles");
+}
+
+async function defaultMemberRoleId() {
+  const member = await prisma.role.findFirst({ where: { name: "Member" } });
+  if (member) return member.id;
+  const any = await prisma.role.findFirst({ where: { status: "active" } });
+  return any?.id || null;
 }
 
 export async function addMemberAction(formData: FormData) {
-  await requireAdmin();
+  try {
+    await requirePermission("members", "add");
+  } catch {
+    return { error: "You do not have permission to add members" };
+  }
+
   const group = await getDefaultGroup();
 
   const name = String(formData.get("name") || "").trim();
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "").trim();
+  let roleId = String(formData.get("roleId") || "").trim();
 
   if (!name || !email) return { error: "Name and email are required" };
   if (password.length < 6) {
     return { error: "Password must be at least 6 characters" };
+  }
+
+  if (!roleId) {
+    roleId = (await defaultMemberRoleId()) || "";
+  }
+  if (!roleId) {
+    return { error: "Create a role first on the Roles page" };
+  }
+
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role || role.status !== "active") {
+    return { error: "Selected role is invalid or inactive" };
   }
 
   const passwordHash = await hashPassword(password);
@@ -41,7 +67,7 @@ export async function addMemberAction(formData: FormData) {
       }
       await prisma.user.update({
         where: { id: existing.id },
-        data: { name, passwordHash },
+        data: { name, passwordHash, roleId, isAdmin: false },
       });
       if (membership) {
         await prisma.membership.update({
@@ -60,7 +86,13 @@ export async function addMemberAction(formData: FormData) {
       }
     } else {
       const user = await prisma.user.create({
-        data: { name, email, passwordHash, isAdmin: false },
+        data: {
+          name,
+          email,
+          passwordHash,
+          isAdmin: false,
+          roleId,
+        },
       });
       await prisma.membership.create({
         data: {
@@ -80,14 +112,25 @@ export async function addMemberAction(formData: FormData) {
 }
 
 export async function setMemberActiveAction(formData: FormData) {
-  const admin = await requireAdmin();
+  try {
+    await requirePermission("members", "delete");
+  } catch {
+    return { error: "You do not have permission to deactivate members" };
+  }
+
+  const session = await requireUser();
   const group = await getDefaultGroup();
   const userId = String(formData.get("userId") || "");
   const active = String(formData.get("active") || "") === "true";
 
   if (!userId) return { error: "Member required" };
-  if (userId === admin.id && !active) {
-    return { error: "Admin cannot deactivate themselves" };
+  if (userId === session.id && !active) {
+    return { error: "You cannot deactivate yourself" };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (target?.isAdmin && !active) {
+    return { error: "Admin cannot be deactivated" };
   }
 
   const membership = await prisma.membership.findUnique({

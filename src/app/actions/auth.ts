@@ -11,9 +11,31 @@ export async function loginAction(formData: FormData) {
     return { error: "Email and password are required" };
   }
 
-  const result = await loginWithCredentials(email, password);
-  if ("error" in result && result.error) {
-    return { error: result.error };
+  try {
+    const result = await loginWithCredentials(email, password);
+    if ("error" in result && result.error) {
+      return { error: result.error };
+    }
+  } catch (err) {
+    console.error("loginAction failed", err);
+    const message = err instanceof Error ? err.message : "";
+    if (message.includes("AUTH_SECRET")) {
+      return { error: "Server misconfigured: AUTH_SECRET is missing." };
+    }
+    if (
+      message.includes("Can't reach database") ||
+      message.includes("P1001") ||
+      message.includes("P1017") ||
+      message.includes("Mongo") ||
+      message.includes("MONGODB_URI") ||
+      message.includes("database")
+    ) {
+      return {
+        error:
+          "MongoDB is not reachable. Set MONGODB_URI to your Atlas cluster on Vercel.",
+      };
+    }
+    return { error: "Login failed. Check server logs / env vars on Vercel." };
   }
 
   redirect("/dashboard");

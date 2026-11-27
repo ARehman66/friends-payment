@@ -1,3 +1,4 @@
+import { requirePageAccess } from "@/lib/access";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 import {
@@ -10,6 +11,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 
 export default async function DashboardPage() {
+  await requirePageAccess("dashboard", "view");
   const group = await getDefaultGroup();
 
   const members = await prisma.membership.findMany({

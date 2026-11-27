@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { getSession } from "@/lib/auth";
+import { requirePageAccess } from "@/lib/access";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,8 +22,7 @@ export default async function StatementPage({
     pageSize?: string;
   }>;
 }) {
-  const user = await getSession();
-  if (!user) return null;
+  const user = await requirePageAccess("statement", "view");
   const group = await getDefaultGroup();
   const sp = await searchParams;
 

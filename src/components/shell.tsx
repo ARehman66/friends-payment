@@ -6,14 +6,7 @@ import { useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
 import { IconMenu } from "@/components/icons";
 import type { SessionUser } from "@/lib/auth";
-
-const links = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/expenses", label: "Expenses" },
-  { href: "/deposits", label: "Deposits" },
-  { href: "/members", label: "Members" },
-  { href: "/statement", label: "Statement" },
-];
+import { RESOURCES, hasPermission } from "@/lib/permissions";
 
 function initials(name: string) {
   return name
@@ -33,6 +26,11 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  const links = RESOURCES.filter(
+    (r) => r.href && hasPermission(user, r.key, "view"),
+  ).map((r) => ({ href: r.href!, label: r.name }));
+
   const current =
     links.find((l) => pathname === l.href || pathname.startsWith(`${l.href}/`))
       ?.label || "BreakLedger";
@@ -69,7 +67,9 @@ export function Shell({
       </span>
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-ink">{user.name}</p>
-        <p className="truncate text-xs text-muted">{user.email}</p>
+        <p className="truncate text-xs text-muted">
+          {user.isAdmin ? "Admin" : user.roleName || "No role"} · {user.email}
+        </p>
       </div>
     </div>
   );

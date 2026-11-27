@@ -1,8 +1,9 @@
 import { format } from "date-fns";
-import { getSession } from "@/lib/auth";
+import { requirePageAccess } from "@/lib/access";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 import { formatMoneyPlain, roundMoney } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import {
   ExpenseAddButton,
   ExpenseRowActions,
@@ -17,8 +18,7 @@ export default async function ExpensesPage({
 }: {
   searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
-  const user = await getSession();
-  if (!user) return null;
+  const user = await requirePageAccess("expenses", "view");
   const group = await getDefaultGroup();
   const sp = await searchParams;
   const q = (sp.q || "").trim();
@@ -79,10 +79,12 @@ export default async function ExpensesPage({
           searchDefault={q}
           searchPlaceholder="Search by note or payer…"
           action={
-            <ExpenseAddButton
-              members={memberOptions}
-              currentUserId={currentUserId}
-            />
+            hasPermission(user, "expenses", "add") ? (
+              <ExpenseAddButton
+                members={memberOptions}
+                currentUserId={currentUserId}
+              />
+            ) : undefined
           }
         />
 

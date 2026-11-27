@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getDefaultGroup } from "@/lib/group";
 import {
   createDeposit,
@@ -18,7 +18,11 @@ function refresh() {
 }
 
 export async function addDepositAction(formData: FormData) {
-  await requireUser();
+  try {
+    await requirePermission("deposits", "add");
+  } catch {
+    return { error: "You do not have permission to add deposits" };
+  }
   const group = await getDefaultGroup();
 
   const amount = Number(formData.get("amount"));
@@ -44,7 +48,11 @@ export async function addDepositAction(formData: FormData) {
 }
 
 export async function updateDepositAction(formData: FormData) {
-  await requireUser();
+  try {
+    await requirePermission("deposits", "edit");
+  } catch {
+    return { error: "You do not have permission to edit deposits" };
+  }
   const group = await getDefaultGroup();
   const ledgerEntryId = String(formData.get("ledgerEntryId") || "");
   const amount = Number(formData.get("amount"));
@@ -73,7 +81,11 @@ export async function updateDepositAction(formData: FormData) {
 }
 
 export async function deleteDepositAction(formData: FormData) {
-  await requireUser();
+  try {
+    await requirePermission("deposits", "delete");
+  } catch {
+    return { error: "You do not have permission to delete deposits" };
+  }
   const ledgerEntryId = String(formData.get("ledgerEntryId") || "");
   if (!ledgerEntryId) return { error: "Deposit id required" };
 

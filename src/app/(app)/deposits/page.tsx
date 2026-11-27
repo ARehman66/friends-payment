@@ -1,8 +1,9 @@
 import { format } from "date-fns";
-import { getSession } from "@/lib/auth";
+import { requirePageAccess } from "@/lib/access";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 import { formatMoneyPlain } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import {
   DepositAddButton,
   DepositRowActions,
@@ -17,8 +18,7 @@ export default async function DepositsPage({
 }: {
   searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
-  const user = await getSession();
-  if (!user) return null;
+  const user = await requirePageAccess("deposits", "view");
   const group = await getDefaultGroup();
   const sp = await searchParams;
   const q = (sp.q || "").trim();
@@ -77,10 +77,12 @@ export default async function DepositsPage({
           searchDefault={q}
           searchPlaceholder="Search by member or note…"
           action={
-            <DepositAddButton
-              members={memberOptions}
-              currentUserId={currentUserId}
-            />
+            hasPermission(user, "deposits", "add") ? (
+              <DepositAddButton
+                members={memberOptions}
+                currentUserId={currentUserId}
+              />
+            ) : undefined
           }
         />
 

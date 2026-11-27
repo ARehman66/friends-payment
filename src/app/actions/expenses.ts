@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getDefaultGroup } from "@/lib/group";
 import {
   createExpense,
@@ -28,7 +28,12 @@ function parseExpenseForm(formData: FormData) {
 }
 
 export async function addExpenseAction(formData: FormData) {
-  const user = await requireUser();
+  let user;
+  try {
+    user = await requirePermission("expenses", "add");
+  } catch {
+    return { error: "You do not have permission to add expenses" };
+  }
   const group = await getDefaultGroup();
   const data = parseExpenseForm(formData);
   const spentAt = data.dateStr
@@ -54,7 +59,12 @@ export async function addExpenseAction(formData: FormData) {
 }
 
 export async function updateExpenseAction(formData: FormData) {
-  const user = await requireUser();
+  let user;
+  try {
+    user = await requirePermission("expenses", "edit");
+  } catch {
+    return { error: "You do not have permission to edit expenses" };
+  }
   const group = await getDefaultGroup();
   const expenseId = String(formData.get("expenseId") || "");
   const data = parseExpenseForm(formData);
@@ -84,7 +94,11 @@ export async function updateExpenseAction(formData: FormData) {
 }
 
 export async function deleteExpenseAction(formData: FormData) {
-  await requireUser();
+  try {
+    await requirePermission("expenses", "delete");
+  } catch {
+    return { error: "You do not have permission to delete expenses" };
+  }
   const expenseId = String(formData.get("expenseId") || "");
   if (!expenseId) return { error: "Expense id required" };
 

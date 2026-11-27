@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { requirePageAccess } from "@/lib/access";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
 import {
@@ -6,7 +6,12 @@ import {
   formatMoneyPlain,
   remainingOf,
 } from "@/lib/format";
-import { MemberAddButton, MemberRowActions } from "@/components/member-forms";
+import { hasPermission } from "@/lib/permissions";
+import {
+  MemberAddButton,
+  MemberRoleSelect,
+  MemberRowActions,
+} from "@/components/member-forms";
 import { PageHeader } from "@/components/page-header";
 import { TableToolbar } from "@/components/table-toolbar";
 import { Pagination } from "@/components/pagination";
@@ -17,8 +22,7 @@ export default async function MembersPage({
 }: {
   searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
-  const user = await getSession();
-  if (!user) return null;
+  const user = await requirePageAccess("members", "view");
   const group = await getDefaultGroup();
   const sp = await searchParams;
   const q = (sp.q || "").trim();
@@ -37,18 +41,28 @@ export default async function MembersPage({
       : {}),
   };
 
-  const [total, members] = await Promise.all([
+  const [total, members, roles] = await Promise.all([
     prisma.membership.count({ where }),
     prisma.membership.findMany({
       where,
-      include: { user: true },
+      include: { user: { include: { role: true } } },
       orderBy: [{ active: "desc" }, { user: { name: "asc" } }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
+    prisma.role.findMany({
+      where: { status: "active" },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const roleOptions = roles.map((r) => ({ id: r.id, name: r.name }));
+  const defaultRoleId =
+    roles.find((r) => r.name === "Member")?.id || roles[0]?.id;
+  const canAdd = hasPermission(user, "members", "add");
+  const canDelete = hasPermission(user, "members", "delete");
+  const canAssignRole = canAdd || hasPermission(user, "roles", "edit");
 
   return (
     <div>
@@ -61,7 +75,14 @@ export default async function MembersPage({
         <TableToolbar
           searchDefault={q}
           searchPlaceholder="Search by name or email…"
-          action={user.isAdmin ? <MemberAddButton /> : undefined}
+          action={
+            canAdd ? (
+              <MemberAddButton
+                roles={roleOptions}
+                defaultRoleId={defaultRoleId}
+              />
+            ) : undefined
+          }
         />
 
         <div className="overflow-x-auto">
@@ -93,7 +114,19 @@ export default async function MembersPage({
                     </td>
                     <td className="col-note text-muted">{m.user.email}</td>
                     <td className="col-person">
-                      {m.user.isAdmin ? "Admin" : "Member"}
+                      {canAssignRole && !m.user.isAdmin ? (
+                        <MemberRoleSelect
+                          userId={m.userId}
+                          roleId={m.user.roleId}
+                          roles={roleOptions}
+                        />
+                      ) : (
+                        <span>
+                          {m.user.isAdmin
+                            ? "Admin"
+                            : m.user.role?.name || "—"}
+                        </span>
+                      )}
                     </td>
                     <td className="col-person">
                       <span
@@ -118,7 +151,7 @@ export default async function MembersPage({
                       {status}
                     </td>
                     <td className="col-action">
-                      {user.isAdmin ? (
+                      {canDelete ? (
                         <MemberRowActions
                           userId={m.userId}
                           active={m.active}

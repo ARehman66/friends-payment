@@ -2,6 +2,14 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import {
+  allPermissions,
+  hasPermission,
+  parseRolePermissionsJson,
+  permissionsFromRoleEntries,
+  type Action,
+  type UserPermissions,
+} from "./permissions";
 
 const COOKIE = "breakledger_session";
 
@@ -18,6 +26,9 @@ export type SessionUser = {
   name: string;
   email: string;
   isAdmin: boolean;
+  roleId: string | null;
+  roleName: string | null;
+  permissions: UserPermissions;
 };
 
 export async function hashPassword(password: string) {
@@ -28,12 +39,58 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
+export async function resolveUserAccess(user: {
+  id: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+  roleId: string | null;
+}): Promise<SessionUser> {
+  if (user.isAdmin) {
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      isAdmin: true,
+      roleId: user.roleId,
+      roleName: "Admin",
+      permissions: allPermissions(),
+    };
+  }
+
+  let roleName: string | null = null;
+  let permissions: UserPermissions = permissionsFromRoleEntries([]);
+
+  if (user.roleId) {
+    const role = await prisma.role.findUnique({ where: { id: user.roleId } });
+    if (role && role.status === "active") {
+      roleName = role.name;
+      permissions = permissionsFromRoleEntries(
+        parseRolePermissionsJson(role.permissions),
+      );
+    }
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    isAdmin: false,
+    roleId: user.roleId,
+    roleName,
+    permissions,
+  };
+}
+
 export async function createSession(user: SessionUser) {
   const token = await new SignJWT({
     sub: user.id,
     name: user.name,
     email: user.email,
     isAdmin: user.isAdmin,
+    roleId: user.roleId,
+    roleName: user.roleName,
+    permissions: user.permissions,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -63,12 +120,33 @@ export async function getSession(): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey());
     if (!payload.sub || typeof payload.email !== "string") return null;
-    return {
-      id: payload.sub,
-      name: String(payload.name || ""),
-      email: payload.email,
-      isAdmin: Boolean(payload.isAdmin),
-    };
+
+    const isAdmin = Boolean(payload.isAdmin);
+    if (isAdmin) {
+      return {
+        id: payload.sub,
+        name: String(payload.name || ""),
+        email: payload.email,
+        isAdmin: true,
+        roleId: typeof payload.roleId === "string" ? payload.roleId : null,
+        roleName: "Admin",
+        permissions: allPermissions(),
+      };
+    }
+
+    // Re-load role permissions so role edits apply without re-login wait forever
+    const dbUser = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isAdmin: true,
+        roleId: true,
+      },
+    });
+    if (!dbUser) return null;
+    return resolveUserAccess(dbUser);
   } catch {
     return null;
   }
@@ -83,6 +161,17 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const session = await requireUser();
   if (!session.isAdmin) throw new Error("Only admin can do this");
+  return session;
+}
+
+export async function requirePermission(
+  resourceKey: string,
+  action: Action | Action[] = "view",
+) {
+  const session = await requireUser();
+  if (!hasPermission(session, resourceKey, action)) {
+    throw new Error("You do not have permission for this action");
+  }
   return session;
 }
 
@@ -102,12 +191,7 @@ export async function loginWithCredentials(email: string, password: string) {
     return { error: "Your account is inactive. Ask admin to activate you." as const };
   }
 
-  const sessionUser: SessionUser = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    isAdmin: user.isAdmin,
-  };
+  const sessionUser = await resolveUserAccess(user);
   await createSession(sessionUser);
   return { user: sessionUser };
 }
