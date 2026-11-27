@@ -1,0 +1,349 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f3f5f8;
+  --panel: #ffffff;
+  --ink: #1a2332;
+  --muted: #6b7a90;
+  --line: #e2e8f0;
+  --brand: #1f6f78;
+  --brand-dark: #15555c;
+  --good: #1a7f5a;
+  --bad: #b42318;
+  --side: #122033;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --color-side: var(--side);
+  --font-sans: var(--font-body);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), var(--font-body), system-ui, sans-serif;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: white;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(31, 111, 120, 0.15);
+}
+
+.login-input {
+  width: 100%;
+  border: 1px solid #e4ebf2;
+  border-radius: 0.85rem;
+  background: #f3f6f9;
+  padding: 0.8rem 0.95rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+  outline: none;
+  transition: 0.15s ease;
+}
+
+.login-input:focus {
+  border-color: var(--brand);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(31, 111, 120, 0.12);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.75rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--brand);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-dark);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #eef2f6;
+  color: var(--ink);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(16, 42, 67, 0.04);
+}
+
+.data-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 0.875rem;
+  table-layout: auto;
+}
+
+.data-table thead {
+  background: #eef3f7;
+}
+
+.data-table th {
+  padding: 0.85rem 1.1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table td {
+  padding: 1rem 1.1rem;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+  color: var(--ink);
+}
+
+.data-table td + td,
+.data-table th + th {
+  border-left: 1px solid transparent;
+}
+
+.data-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.data-table .col-date {
+  min-width: 7.5rem;
+  white-space: nowrap;
+}
+
+.data-table .col-note {
+  min-width: 9rem;
+  max-width: 14rem;
+}
+
+.data-table .col-person {
+  min-width: 7rem;
+  white-space: nowrap;
+}
+
+.data-table .col-present {
+  min-width: 9rem;
+  max-width: 14rem;
+}
+
+.data-table .col-money {
+  min-width: 6.5rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table .col-action {
+  min-width: 7.5rem;
+  width: 7.5rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+  color: var(--muted);
+  transition: 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: #eef2f6;
+  color: var(--ink);
+}
+
+.icon-btn-danger:hover {
+  background: rgba(180, 35, 24, 0.08);
+  color: var(--bad);
+}
+
+.page-btn {
+  display: inline-flex;
+  min-width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.page-btn:hover {
+  background: #eef2f6;
+}
+
+.page-btn-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: white;
+}
+
+.page-btn-active:hover {
+  background: var(--brand-dark);
+}
+
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1.1rem;
+  padding: 1rem 1.1rem 1.15rem;
+  box-shadow: 0 8px 24px rgba(16, 42, 67, 0.05);
+}
+
+.stat-card-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stat-card-value {
+  margin-top: 0.85rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .stat-card-value {
+    font-size: 1.35rem;
+  }
+}
+
+.landing-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.55;
+  animation: orb-float 10s ease-in-out infinite;
+}
+
+.landing-orb-a {
+  top: -6rem;
+  right: -4rem;
+  width: 18rem;
+  height: 18rem;
+  background: #1f6f78;
+  animation-duration: 12s;
+}
+
+.landing-orb-b {
+  bottom: 10%;
+  left: -5rem;
+  width: 16rem;
+  height: 16rem;
+  background: #2a4a6a;
+  animation-delay: -4s;
+  animation-duration: 14s;
+}
+
+.landing-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+}
+
+.landing-rise {
+  animation: rise-in 0.7s ease-out both;
+}
+
+.landing-rise-delay {
+  animation: rise-in 0.8s ease-out 0.15s both;
+}
+
+.landing-cta:hover {
+  transform: translateY(-1px);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes orb-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(12px, -18px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-rise-delay,
+  .landing-orb {
+    animation: none;
+  }
+}
