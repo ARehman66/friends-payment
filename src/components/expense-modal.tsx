@@ -2,15 +2,10 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  addExpenseAction,
-  deleteExpenseAction,
-  updateExpenseAction,
-} from "@/app/actions/expenses";
+import { addExpenseAction } from "@/app/actions/expenses";
 import { Modal } from "@/components/modal";
-import { ConfirmModal } from "@/components/confirm-modal";
 import { DetailMiniCard } from "@/components/stat-card";
-import { IconEdit, IconEye, IconPlus, IconTrash } from "@/components/icons";
+import { IconEye, IconPlus } from "@/components/icons";
 
 type Member = { id: string; name: string };
 
@@ -54,12 +49,7 @@ export function ExpenseRowActions({
   members: Member[];
   expense: ExpenseEdit;
 }) {
-  const [editOpen, setEditOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
   const payer = members.find((m) => m.id === expense.paidById)?.name || "—";
   const present = expense.participantIds
     .map((id) => members.find((m) => m.id === id)?.name || id)
@@ -67,27 +57,12 @@ export function ExpenseRowActions({
 
   return (
     <div className="flex flex-col items-end">
-      <div className="inline-flex items-center justify-end gap-1">
-        <button type="button" className="icon-btn" title="View" onClick={() => setViewOpen(true)}>
-          <IconEye />
-        </button>
-        <button type="button" className="icon-btn" title="Edit" onClick={() => setEditOpen(true)}>
-          <IconEdit />
-        </button>
-        <button
-          type="button"
-          className="icon-btn icon-btn-danger"
-          title="Delete"
-          disabled={pending}
-          onClick={() => setDeleteOpen(true)}
-        >
-          <IconTrash />
-        </button>
-      </div>
-      {error ? <p className="mt-1 text-xs text-bad">{error}</p> : null}
+      <button type="button" className="icon-btn" title="View" onClick={() => setViewOpen(true)}>
+        <IconEye />
+      </button>
 
       <Modal open={viewOpen} title="Expense details" onClose={() => setViewOpen(false)}>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5 text-left" dir="ltr">
           <DetailMiniCard label="Date" value={expense.spentAt} />
           <DetailMiniCard label="Amount" value={String(expense.amount)} tone="bad" />
           <DetailMiniCard label="Note" value={expense.note || "—"} />
@@ -97,38 +72,6 @@ export function ExpenseRowActions({
           </div>
         </div>
       </Modal>
-
-      <ConfirmModal
-        open={deleteOpen}
-        title="Delete expense?"
-        message="This will reverse balances for everyone on this bill. This cannot be undone."
-        confirmLabel="Delete expense"
-        pending={pending}
-        onCancel={() => setDeleteOpen(false)}
-        onConfirm={() => {
-          setError(null);
-          const fd = new FormData();
-          fd.set("expenseId", expense.id);
-          startTransition(async () => {
-            const result = await deleteExpenseAction(fd);
-            if (result?.error) {
-              setError(result.error);
-              setDeleteOpen(false);
-              return;
-            }
-            setDeleteOpen(false);
-            router.refresh();
-          });
-        }}
-      />
-
-      <ExpenseFormModal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        members={members}
-        currentUserId={expense.paidById}
-        initial={expense}
-      />
     </div>
   );
 }
@@ -138,13 +81,11 @@ function ExpenseFormModal({
   onClose,
   members,
   currentUserId,
-  initial,
 }: {
   open: boolean;
   onClose: () => void;
   members: Member[];
   currentUserId: string;
-  initial?: ExpenseEdit;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -152,14 +93,13 @@ function ExpenseFormModal({
   const [amount, setAmount] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const today = new Date().toISOString().slice(0, 10);
-  const isEdit = Boolean(initial);
 
   useEffect(() => {
     if (!open) return;
-    setAmount(initial ? String(initial.amount) : "");
-    setSelected(initial?.participantIds || members.map((m) => m.id));
+    setAmount("");
+    setSelected(members.map((m) => m.id));
     setError(null);
-  }, [open, initial, members]);
+  }, [open, members]);
 
   const share = useMemo(() => {
     const n = Number(amount);
@@ -174,23 +114,17 @@ function ExpenseFormModal({
   }
 
   return (
-    <Modal
-      open={open}
-      title={isEdit ? "Edit expense" : "Add expense"}
-      onClose={onClose}
-    >
+    <Modal open={open} title="Add expense" onClose={onClose}>
       {members.length === 0 ? (
         <p className="text-sm text-muted">No active members available.</p>
       ) : (
         <form
-          className="space-y-3"
+          className="modal-form"
           action={(formData) => {
             setError(null);
             selected.forEach((id) => formData.append("participantIds", id));
             startTransition(async () => {
-              const result = isEdit
-                ? await updateExpenseAction(formData)
-                : await addExpenseAction(formData);
+              const result = await addExpenseAction(formData);
               if (result?.error) {
                 setError(result.error);
                 return;
@@ -200,12 +134,9 @@ function ExpenseFormModal({
             });
           }}
         >
-          {isEdit ? (
-            <input type="hidden" name="expenseId" value={initial!.id} />
-          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Amount</span>
+            <label className="modal-field">
+              <span>Amount</span>
               <input
                 name="amount"
                 type="number"
@@ -217,19 +148,19 @@ function ExpenseFormModal({
                 onChange={(e) => setAmount(e.target.value)}
               />
             </label>
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Date</span>
+            <label className="modal-field">
+              <span>Date</span>
               <input
                 name="spentAt"
                 type="date"
                 required
-                defaultValue={initial?.spentAt || today}
+                defaultValue={today}
                 className="input"
               />
             </label>
           </div>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Who paid</span>
+          <label className="modal-field">
+            <span>Who paid</span>
             <select
               name="paidById"
               defaultValue={currentUserId}
@@ -243,17 +174,12 @@ function ExpenseFormModal({
               ))}
             </select>
           </label>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Note</span>
-            <input
-              name="note"
-              className="input"
-              defaultValue={initial?.note || ""}
-              placeholder="Tea / lunch"
-            />
+          <label className="modal-field">
+            <span>Note</span>
+            <input name="note" className="input" placeholder="Tea / lunch" />
           </label>
-          <div>
-            <p className="mb-2 text-sm font-medium">Who was present?</p>
+          <div className="modal-field">
+            <span>Who was present?</span>
             <div className="grid grid-cols-2 gap-2">
               {members.map((m) => {
                 const on = selected.includes(m.id);
@@ -264,8 +190,8 @@ function ExpenseFormModal({
                     onClick={() => toggle(m.id)}
                     className={`rounded-xl border px-3 py-2 text-left text-sm ${
                       on
-                        ? "border-brand bg-brand/5 font-medium"
-                        : "border-line text-muted"
+                        ? "border-brand bg-brand/5 font-medium text-ink"
+                        : "border-[#d7e0ea] bg-white text-muted"
                     }`}
                   >
                     {m.name}
@@ -273,7 +199,7 @@ function ExpenseFormModal({
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-muted">
+            <p className="text-xs text-muted">
               Equal share: <strong className="text-ink">{share || "—"}</strong> ×{" "}
               {selected.length}
             </p>
@@ -288,7 +214,7 @@ function ExpenseFormModal({
             className="btn btn-primary w-full"
             disabled={pending || selected.length === 0}
           >
-            {pending ? "Saving…" : isEdit ? "Update expense" : "Save expense"}
+            {pending ? "Saving…" : "Save expense"}
           </button>
         </form>
       )}

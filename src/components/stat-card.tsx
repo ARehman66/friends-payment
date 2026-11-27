@@ -28,16 +28,22 @@ export function StatCard({
           : "bg-[#e8eef5] text-muted";
 
   return (
-    <div className="stat-card">
-      <div className="flex items-start justify-between gap-3">
-        <p className="stat-card-label">{label}</p>
+    <div className="rounded-xl border border-[#c5d0dc] bg-white px-3 py-2.5 text-left shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <p className="m-0 text-left text-[10px] font-semibold uppercase tracking-wide text-muted">
+          {label}
+        </p>
         <span
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconWrap}`}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${iconWrap}`}
         >
           {icon}
         </span>
       </div>
-      <p className={`stat-card-value ${valueClass}`}>{value}</p>
+      <p
+        className={`mt-1.5 mb-0 text-left font-display text-base font-medium leading-none tracking-tight tabular-nums sm:text-lg ${valueClass}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -54,11 +60,15 @@ export function DetailMiniCard({
   const valueClass =
     tone === "good" ? "text-good" : tone === "bad" ? "text-bad" : "text-ink";
   return (
-    <div className="rounded-xl border border-line bg-bg/80 px-3 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+    <div className="rounded-xl border border-[#c5d0dc] bg-white px-3.5 py-3 text-left shadow-sm">
+      <p className="m-0 text-left text-[10px] font-semibold uppercase tracking-wide text-muted">
         {label}
       </p>
-      <p className={`mt-1 text-sm font-semibold ${valueClass}`}>{value}</p>
+      <p
+        className={`mt-1.5 mb-0 break-words text-left text-sm font-semibold ${valueClass}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

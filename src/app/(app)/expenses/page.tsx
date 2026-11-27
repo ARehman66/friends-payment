@@ -117,7 +117,7 @@ export default async function ExpensesPage({
                     <td className="col-money">
                       {formatMoneyPlain(share, group.currency)}
                     </td>
-                    <td className="col-money font-semibold">
+                    <td className="col-money font-semibold text-bad">
                       {formatMoneyPlain(expense.amount, group.currency)}
                     </td>
                     <td className="col-action">

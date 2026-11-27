@@ -182,8 +182,8 @@ body {
 }
 
 .data-table .col-action {
-  min-width: 7.5rem;
-  width: 7.5rem;
+  min-width: 4.5rem;
+  width: 4.5rem;
   text-align: right;
   white-space: nowrap;
 }
@@ -238,36 +238,57 @@ body {
   background: var(--brand-dark);
 }
 
-.stat-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 1.1rem;
-  padding: 1rem 1.1rem 1.15rem;
-  box-shadow: 0 8px 24px rgba(16, 42, 67, 0.05);
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+  text-align: left;
+  direction: ltr;
 }
 
-.stat-card-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+  direction: ltr;
 }
 
-.stat-card-value {
-  margin-top: 0.85rem;
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 1.65rem;
+.modal-field > span {
+  display: block;
+  width: 100%;
+  margin: 0;
+  font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-align: left;
+  line-height: 1.25;
 }
 
-@media (max-width: 640px) {
-  .stat-card-value {
-    font-size: 1.35rem;
-  }
+.modal-field .input,
+.modal-field select.input,
+.modal-form .input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  border: 1.5px solid #c5d0dc;
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  direction: ltr;
+  box-shadow: none;
+}
+
+.modal-field .input:focus,
+.modal-field select.input:focus,
+.modal-form .input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(31, 111, 120, 0.15);
+  outline: none;
 }
 
 .landing-orb {

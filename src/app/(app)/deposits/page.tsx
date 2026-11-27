@@ -2,11 +2,7 @@ import { format } from "date-fns";
 import { getSession } from "@/lib/auth";
 import { getDefaultGroup } from "@/lib/group";
 import { prisma } from "@/lib/prisma";
-import {
-  advanceOf,
-  formatMoneyPlain,
-  remainingOf,
-} from "@/lib/format";
+import { formatMoneyPlain } from "@/lib/format";
 import {
   DepositAddButton,
   DepositRowActions,
@@ -70,65 +66,11 @@ export default async function DepositsPage({
     : activeMembers[0]?.userId || user.id;
 
   return (
-    <div className="space-y-4">
+    <div>
       <PageHeader
         title="Deposits"
         subtitle="Money coming in — advances added to a member balance"
       />
-
-      <div className="card overflow-hidden">
-        <div className="border-b border-line px-4 py-3">
-          <h2 className="text-sm font-semibold text-ink">Member balances</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeMembers.map((m) => {
-                const adv = advanceOf(m.balance);
-                const rem = remainingOf(m.balance);
-                return (
-                  <tr key={m.id}>
-                    <td className="font-medium">
-                      {m.user.name}
-                      {m.user.isAdmin ? (
-                        <span className="ml-2 text-[10px] text-brand">Admin</span>
-                      ) : null}
-                    </td>
-                    <td
-                      className={`font-semibold ${
-                        adv > 0
-                          ? "text-good"
-                          : rem > 0
-                            ? "text-bad"
-                            : "text-muted"
-                      }`}
-                    >
-                      {adv > 0
-                        ? `Adv ${formatMoneyPlain(adv, group.currency)}`
-                        : rem > 0
-                          ? `Rem ${formatMoneyPlain(rem, group.currency)}`
-                          : "Settled"}
-                    </td>
-                  </tr>
-                );
-              })}
-              {activeMembers.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="!py-8 text-center text-muted">
-                    No active members.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       <div className="card overflow-hidden">
         <TableToolbar

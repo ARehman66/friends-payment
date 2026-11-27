@@ -100,7 +100,7 @@ export default async function MembersPage({
                         className={
                           m.active
                             ? "font-semibold text-good"
-                            : "font-semibold text-muted"
+                            : "font-semibold text-bad"
                         }
                       >
                         {m.active ? "Active" : "Inactive"}
@@ -123,6 +123,7 @@ export default async function MembersPage({
                           userId={m.userId}
                           active={m.active}
                           isAdminUser={m.user.isAdmin}
+                          name={m.user.name}
                         />
                       ) : (
                         <span className="text-xs text-muted">—</span>

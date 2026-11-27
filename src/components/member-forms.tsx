@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { addMemberAction, setMemberActiveAction } from "@/app/actions/members";
 import { Modal } from "@/components/modal";
 import { ConfirmModal } from "@/components/confirm-modal";
-import { IconEdit, IconPlus, IconTrash } from "@/components/icons";
+import { IconPlus, IconTrash } from "@/components/icons";
 
 export function MemberAddButton() {
   const [open, setOpen] = useState(false);
@@ -21,7 +21,7 @@ export function MemberAddButton() {
       </button>
       <Modal open={open} title="Add member" onClose={() => setOpen(false)}>
         <form
-          className="space-y-3"
+          className="modal-form"
           action={(formData) => {
             setError(null);
             startTransition(async () => {
@@ -35,12 +35,12 @@ export function MemberAddButton() {
             });
           }}
         >
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Name</span>
+          <label className="modal-field">
+            <span>Name</span>
             <input name="name" required className="input" placeholder="Ali" />
           </label>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Email</span>
+          <label className="modal-field">
+            <span>Email</span>
             <input
               name="email"
               type="email"
@@ -49,8 +49,8 @@ export function MemberAddButton() {
               placeholder="ali@office.com"
             />
           </label>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Password</span>
+          <label className="modal-field">
+            <span>Password</span>
             <input
               name="password"
               type="text"
@@ -92,11 +92,15 @@ export function MemberRowActions({
     return <span className="text-xs text-muted">—</span>;
   }
 
-  function runToggle(nextActive: boolean) {
+  if (!active) {
+    return <span className="text-xs text-muted">Inactive</span>;
+  }
+
+  function deactivate() {
     setError(null);
     const fd = new FormData();
     fd.set("userId", userId);
-    fd.set("active", nextActive ? "true" : "false");
+    fd.set("active", "false");
     startTransition(async () => {
       const result = await setMemberActiveAction(fd);
       if (result?.error) {
@@ -111,28 +115,15 @@ export function MemberRowActions({
 
   return (
     <div className="flex flex-col items-end">
-      <div className="inline-flex items-center gap-1">
-        <button
-          type="button"
-          className="icon-btn"
-          title={active ? "Set inactive" : "Set active"}
-          disabled={pending}
-          onClick={() => runToggle(!active)}
-        >
-          <IconEdit />
-        </button>
-        {active ? (
-          <button
-            type="button"
-            className="icon-btn icon-btn-danger"
-            title="Deactivate"
-            disabled={pending}
-            onClick={() => setConfirmOpen(true)}
-          >
-            <IconTrash />
-          </button>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        className="icon-btn icon-btn-danger"
+        title="Deactivate"
+        disabled={pending}
+        onClick={() => setConfirmOpen(true)}
+      >
+        <IconTrash />
+      </button>
       {error ? <p className="mt-1 text-xs text-bad">{error}</p> : null}
 
       <ConfirmModal
@@ -142,7 +133,7 @@ export function MemberRowActions({
         confirmLabel="Deactivate"
         pending={pending}
         onCancel={() => setConfirmOpen(false)}
-        onConfirm={() => runToggle(false)}
+        onConfirm={deactivate}
       />
     </div>
   );

@@ -65,7 +65,9 @@ export function Modal({
             ✕
           </button>
         </div>
-        <div className="overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
+        <div className="overflow-y-auto px-4 py-4 text-left sm:px-5" dir="ltr">
+          {children}
+        </div>
       </div>
     </div>
   );

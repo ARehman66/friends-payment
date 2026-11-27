@@ -69,13 +69,13 @@ export default async function DashboardPage() {
                 </span>
               ) : null}
             </div>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <StatCard
                 label="Total"
                 value={formatMoneyPlain(user.total, group.currency)}
                 tone="brand"
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6" />
                   </svg>
                 }
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
                 value={formatMoneyPlain(user.expense, group.currency)}
                 tone="bad"
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 5v14M5 12h14" />
                     <path d="m7 9 5 5 5-5" />
                   </svg>
@@ -96,7 +96,7 @@ export default async function DashboardPage() {
                 value={formatMoneyPlain(user.advance, group.currency)}
                 tone="good"
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 19V5M5 12l7-7 7 7" />
                   </svg>
                 }
@@ -106,7 +106,7 @@ export default async function DashboardPage() {
                 value={formatMoneyPlain(user.remaining, group.currency)}
                 tone="bad"
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="9" />
                     <path d="M12 7v5l3 2" />
                   </svg>
